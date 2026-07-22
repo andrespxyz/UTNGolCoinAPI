@@ -5,7 +5,10 @@ import jakarta.ejb.Stateless;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Stateless
 public class BilleteraService {
@@ -77,8 +80,37 @@ public class BilleteraService {
         return true;
     }
 
-    public List<Billetera> getRanking() {
-        return em.createQuery("SELECT b FROM Billetera b ORDER BY b.saldo DESC", Billetera.class)
+    public BigDecimal getTotalCirculacion() {
+        return em.createQuery(
+                "SELECT COALESCE(SUM(b.saldo), 0) FROM Billetera b", BigDecimal.class)
+                .getSingleResult();
+    }
+
+    // RF21 — ranking ordenado por saldo y por aciertos (predicciones GANADA)
+    public List<Map<String, Object>> getRanking() {
+        List<Billetera> billeteras = em.createQuery("SELECT b FROM Billetera b", Billetera.class)
                 .getResultList();
+
+        List<Map<String, Object>> resultado = new ArrayList<>();
+        for (Billetera b : billeteras) {
+            Long aciertos = em.createQuery(
+                    "SELECT COUNT(p) FROM Prediccion p WHERE p.billeteraId = :bid AND p.estado = 'GANADA'", Long.class)
+                    .setParameter("bid", b.getId())
+                    .getSingleResult();
+
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("nombreUsuario", b.getNombreUsuario());
+            entry.put("saldo", b.getSaldo());
+            entry.put("aciertos", aciertos);
+            resultado.add(entry);
+        }
+
+        resultado.sort((a, bb) -> {
+            int cmpSaldo = ((BigDecimal) bb.get("saldo")).compareTo((BigDecimal) a.get("saldo"));
+            if (cmpSaldo != 0) return cmpSaldo;
+            return ((Long) bb.get("aciertos")).compareTo((Long) a.get("aciertos"));
+        });
+
+        return resultado;
     }
 }

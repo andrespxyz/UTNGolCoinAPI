@@ -12,17 +12,36 @@ public class PrediccionService {
     @PersistenceContext(unitName = "UTNGolCoinPU")
     private EntityManager em;
 
-    public Prediccion crearPrediccion(Long billeteraId, Long partidoId, String pronostico, BigDecimal monto) {
+    public Prediccion crearPrediccion(Long billeteraId, Long partidoId, String pronostico,
+            BigDecimal monto, String fechaHoraPartidoIso) {
         Billetera b = em.find(Billetera.class, billeteraId);
-        if (b == null) throw new IllegalArgumentException("Billetera no encontrada");
-        if (b.getSaldo().compareTo(monto) < 0) throw new IllegalArgumentException("Saldo insuficiente");
+        if (b == null) {
+            throw new IllegalArgumentException("Billetera no encontrada");
+        }
+        if (b.getSaldo().compareTo(monto) < 0) {
+            throw new IllegalArgumentException("Saldo insuficiente");
+        }
+
+        // RF17 — rechazar predicciones después de iniciado el partido
+        if (fechaHoraPartidoIso != null && !fechaHoraPartidoIso.isBlank()) {
+            try {
+                java.time.Instant inicioPartido = java.time.Instant.parse(fechaHoraPartidoIso);
+                if (java.time.Instant.now().isAfter(inicioPartido)) {
+                    throw new IllegalArgumentException("El partido ya inició, no se pueden crear más predicciones.");
+                }
+            } catch (java.time.format.DateTimeParseException e) {
+                // si la fecha viene en formato inválido, no bloqueamos por eso
+            }
+        }
 
         List<Prediccion> existentes = em.createQuery(
                 "SELECT p FROM Prediccion p WHERE p.billeteraId = :bid AND p.partidoId = :pid", Prediccion.class)
                 .setParameter("bid", billeteraId)
                 .setParameter("pid", partidoId)
                 .getResultList();
-        if (!existentes.isEmpty()) throw new IllegalArgumentException("Ya existe una predicción para este partido");
+        if (!existentes.isEmpty()) {
+            throw new IllegalArgumentException("Ya existe una predicción para este partido");
+        }
 
         b.setSaldo(b.getSaldo().subtract(monto));
         em.merge(b);
@@ -74,6 +93,14 @@ public class PrediccionService {
     public List<Prediccion> getPrediccionesByBilletera(Long billeteraId) {
         return em.createQuery("SELECT p FROM Prediccion p WHERE p.billeteraId = :bid ORDER BY p.fechaHora DESC", Prediccion.class)
                 .setParameter("bid", billeteraId)
+                .getResultList();
+    }
+
+    public List<Object[]> getPartidosConMasPredicciones() {
+        return em.createQuery(
+                "SELECT p.partidoId, COUNT(p) as cantidad FROM Prediccion p "
+                + "GROUP BY p.partidoId ORDER BY cantidad DESC")
+                .setMaxResults(10)
                 .getResultList();
     }
 }

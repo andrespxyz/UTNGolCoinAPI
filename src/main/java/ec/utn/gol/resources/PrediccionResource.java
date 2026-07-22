@@ -23,7 +23,8 @@ public class PrediccionResource {
             Long partidoId = Long.parseLong(body.get("partidoId"));
             String pronostico = body.get("pronostico");
             BigDecimal monto = new BigDecimal(body.get("monto"));
-            Prediccion p = prediccionService.crearPrediccion(billeteraId, partidoId, pronostico, monto);
+            String fechaHoraPartido = body.get("fechaHoraPartido");
+            Prediccion p = prediccionService.crearPrediccion(billeteraId, partidoId, pronostico, monto, fechaHoraPartido);
             return Response.status(Response.Status.CREATED).entity(p).build();
         } catch (IllegalArgumentException e) {
             return Response.status(Response.Status.BAD_REQUEST).entity(e.getMessage()).build();
