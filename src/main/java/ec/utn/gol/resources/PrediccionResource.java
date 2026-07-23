@@ -34,7 +34,12 @@ public class PrediccionResource {
     @POST
     @Path("/liquidar/{partidoId}")
     public Response liquidar(@PathParam("partidoId") Long partidoId, Map<String, String> body) {
-        prediccionService.liquidarPredicciones(partidoId, body.get("resultadoReal"));
+        String resultadoReal = body != null ? body.get("resultadoReal") : null;
+        if (resultadoReal == null || resultadoReal.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("resultadoReal es requerido para liquidar predicciones").build();
+        }
+        prediccionService.liquidarPredicciones(partidoId, resultadoReal);
         return Response.ok("Predicciones liquidadas").build();
     }
 

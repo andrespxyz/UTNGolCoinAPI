@@ -17,6 +17,11 @@ public class BilleteraService {
     private EntityManager em;
 
     public Billetera crearBilletera(Long usuarioId, String nombreUsuario) {
+        Billetera existente = getBilleteraByUsuarioId(usuarioId);
+        if (existente != null) {
+            throw new IllegalArgumentException("Ya existe una billetera para este usuario");
+        }
+
         Billetera b = new Billetera();
         b.setUsuarioId(usuarioId);
         b.setNombreUsuario(nombreUsuario);
