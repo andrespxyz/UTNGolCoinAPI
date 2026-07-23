@@ -1,6 +1,7 @@
 package ec.utn.gol.resources;
 
 import ec.utn.gol.models.*;
+import ec.utn.gol.security.Autenticado;
 import ec.utn.gol.services.*;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -16,6 +17,7 @@ public class BilleteraResource {
     private BilleteraService billeteraService;
 
     @POST
+    @Autenticado
     public Response crearBilletera(Billetera billetera) {
         try {
             Billetera b = billeteraService.crearBilletera(billetera.getUsuarioId(), billetera.getNombreUsuario());
@@ -27,6 +29,7 @@ public class BilleteraResource {
 
     @GET
     @Path("/usuario/{usuarioId}")
+    @Autenticado
     public Response getBilleteraByUsuario(@PathParam("usuarioId") Long usuarioId) {
         Billetera b = billeteraService.getBilleteraByUsuarioId(usuarioId);
         if (b == null) return Response.status(Response.Status.NOT_FOUND).build();
@@ -35,6 +38,7 @@ public class BilleteraResource {
 
     @GET
     @Path("/{billeteraId}/transacciones")
+    @Autenticado
     public Response getTransacciones(@PathParam("billeteraId") Long billeteraId) {
         List<Transaccion> transacciones = billeteraService.getTransacciones(billeteraId);
         return Response.ok(transacciones).build();
@@ -42,6 +46,7 @@ public class BilleteraResource {
 
     @POST
     @Path("/{billeteraId}/bono-diario")
+    @Autenticado
     public Response aplicarBonoDiario(@PathParam("billeteraId") Long billeteraId) {
         boolean aplicado = billeteraService.aplicarBonoDiario(billeteraId);
         if (!aplicado) return Response.status(Response.Status.BAD_REQUEST)
@@ -49,6 +54,7 @@ public class BilleteraResource {
         return Response.ok("Bono diario aplicado").build();
     }
 
+    // RF21 — ranking público, sin autenticación.
     @GET
     @Path("/ranking")
     public Response getRanking() {

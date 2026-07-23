@@ -1,5 +1,6 @@
 package ec.utn.gol.resources;
 
+import ec.utn.gol.security.SoloAdmin;
 import ec.utn.gol.services.*;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -10,6 +11,7 @@ import java.util.Map;
 
 @Path("/reportes")
 @Produces(MediaType.APPLICATION_JSON)
+@SoloAdmin
 public class ReporteResource {
 
     @Inject

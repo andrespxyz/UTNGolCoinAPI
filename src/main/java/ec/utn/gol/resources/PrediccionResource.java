@@ -1,6 +1,8 @@
 package ec.utn.gol.resources;
 
 import ec.utn.gol.models.*;
+import ec.utn.gol.security.Autenticado;
+import ec.utn.gol.security.SoloAdmin;
 import ec.utn.gol.services.*;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -17,6 +19,7 @@ public class PrediccionResource {
     private PrediccionService prediccionService;
 
     @POST
+    @Autenticado
     public Response crearPrediccion(Map<String, String> body) {
         try {
             Long billeteraId = Long.parseLong(body.get("billeteraId"));
@@ -33,6 +36,7 @@ public class PrediccionResource {
 
     @POST
     @Path("/liquidar/{partidoId}")
+    @SoloAdmin
     public Response liquidar(@PathParam("partidoId") Long partidoId, Map<String, String> body) {
         String resultadoReal = body != null ? body.get("resultadoReal") : null;
         if (resultadoReal == null || resultadoReal.isBlank()) {
@@ -45,6 +49,7 @@ public class PrediccionResource {
 
     @GET
     @Path("/billetera/{billeteraId}")
+    @Autenticado
     public Response getPredicciones(@PathParam("billeteraId") Long billeteraId) {
         return Response.ok(prediccionService.getPrediccionesByBilletera(billeteraId)).build();
     }
