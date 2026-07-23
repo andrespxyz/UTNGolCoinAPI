@@ -12,8 +12,18 @@ public class PrediccionService {
     @PersistenceContext(unitName = "UTNGolCoinPU")
     private EntityManager em;
 
+    private static final java.util.Set<String> PRONOSTICOS_VALIDOS =
+            java.util.Set.of("LOCAL", "EMPATE", "VISITANTE");
+
     public Prediccion crearPrediccion(Long billeteraId, Long partidoId, String pronostico,
             BigDecimal monto, String fechaHoraPartidoIso) {
+        if (monto == null || monto.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("El monto debe ser mayor a cero");
+        }
+        if (pronostico == null || !PRONOSTICOS_VALIDOS.contains(pronostico)) {
+            throw new IllegalArgumentException("Pronóstico inválido, debe ser LOCAL, EMPATE o VISITANTE");
+        }
+
         Billetera b = em.find(Billetera.class, billeteraId);
         if (b == null) {
             throw new IllegalArgumentException("Billetera no encontrada");
@@ -22,16 +32,20 @@ public class PrediccionService {
             throw new IllegalArgumentException("Saldo insuficiente");
         }
 
-        // RF17 — rechazar predicciones después de iniciado el partido
-        if (fechaHoraPartidoIso != null && !fechaHoraPartidoIso.isBlank()) {
-            try {
-                java.time.Instant inicioPartido = java.time.Instant.parse(fechaHoraPartidoIso);
-                if (java.time.Instant.now().isAfter(inicioPartido)) {
-                    throw new IllegalArgumentException("El partido ya inició, no se pueden crear más predicciones.");
-                }
-            } catch (java.time.format.DateTimeParseException e) {
-                // si la fecha viene en formato inválido, no bloqueamos por eso
+        // RF17 — rechazar predicciones después de iniciado el partido. Antes esta
+        // validación se salteaba en silencio si la fecha venía nula o mal formada,
+        // lo que permitía apostar sobre partidos ya iniciados: ahora se rechaza
+        // la predicción también en esos casos (fail closed, no fail open).
+        if (fechaHoraPartidoIso == null || fechaHoraPartidoIso.isBlank()) {
+            throw new IllegalArgumentException("Falta la fecha/hora del partido para validar el cierre de apuestas");
+        }
+        try {
+            java.time.Instant inicioPartido = java.time.Instant.parse(fechaHoraPartidoIso);
+            if (java.time.Instant.now().isAfter(inicioPartido)) {
+                throw new IllegalArgumentException("El partido ya inició, no se pueden crear más predicciones.");
             }
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new IllegalArgumentException("Fecha/hora del partido con formato inválido");
         }
 
         List<Prediccion> existentes = em.createQuery(

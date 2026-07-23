@@ -38,6 +38,10 @@ public class BilleteraService {
         return b;
     }
 
+    public Billetera getBilleteraById(Long id) {
+        return em.find(Billetera.class, id);
+    }
+
     public Billetera getBilleteraByUsuarioId(Long usuarioId) {
         try {
             return em.createQuery("SELECT b FROM Billetera b WHERE b.usuarioId = :uid", Billetera.class)
