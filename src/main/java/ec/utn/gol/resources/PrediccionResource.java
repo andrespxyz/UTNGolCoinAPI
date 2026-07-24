@@ -73,8 +73,12 @@ public class PrediccionResource {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity("resultadoReal es requerido para liquidar predicciones").build();
         }
-        prediccionService.liquidarPredicciones(partidoId, resultadoReal);
-        return Response.ok("Predicciones liquidadas").build();
+        try {
+            prediccionService.liquidarPredicciones(partidoId, resultadoReal);
+            return Response.ok("Predicciones liquidadas").build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(e.getMessage()).build();
+        }
     }
 
     @GET

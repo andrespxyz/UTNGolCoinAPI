@@ -24,7 +24,13 @@ public class PrediccionService {
             throw new IllegalArgumentException("Pronóstico inválido, debe ser LOCAL, EMPATE o VISITANTE");
         }
 
-        Billetera b = em.find(Billetera.class, billeteraId);
+        // Lock pesimista: sin esto, dos requests casi simultáneos para la misma
+        // billetera (doble clic, dos pestañas, reintento de red) podían leer el
+        // mismo saldo antes de que el primero confirmara, pasar ambos la
+        // validación de saldo suficiente, y dejar el saldo negativo (double-spend).
+        // El lock también serializa el chequeo+insert de "predicción duplicada" de
+        // más abajo para esta misma billetera, cerrando esa segunda carrera también.
+        Billetera b = em.find(Billetera.class, billeteraId, LockModeType.PESSIMISTIC_WRITE);
         if (b == null) {
             throw new IllegalArgumentException("Billetera no encontrada");
         }
@@ -72,22 +78,51 @@ public class PrediccionService {
         p.setPartidoId(partidoId);
         p.setPronostico(pronostico);
         p.setMonto(monto);
+        // Cuota fija 2x para cualquier pronóstico — decisión de alcance académico,
+        // no un cálculo pendiente: no hay ninguna fuente de probabilidades reales
+        // (odds de casa de apuestas, historial, etc.) en el sistema para derivar una
+        // cuota dinámica por resultado. Se fija explícitamente acá (en vez de
+        // depender del valor por defecto del campo en la entidad) para que quede
+        // claro que es intencional, no un olvido.
+        p.setCuota(new BigDecimal("2.0"));
         em.persist(p);
 
         return p;
     }
 
     public void liquidarPredicciones(Long partidoId, String resultadoReal) {
+        // Antes solo se chequeaba que resultadoReal no fuera null/vacío: un typo
+        // ("local" en minúscula, o cualquier valor que no matchee) hacía que TODAS
+        // las predicciones pendientes de ese partido cayeran en el else y quedaran
+        // "PERDIDA" en silencio, sin que nadie cobrara ni hubiera ningún error.
+        if (!PRONOSTICOS_VALIDOS.contains(resultadoReal)) {
+            throw new IllegalArgumentException(
+                    "resultadoReal inválido, debe ser LOCAL, EMPATE o VISITANTE");
+        }
+
+        // Lock pesimista sobre las predicciones a liquidar: si /liquidar/{id} se
+        // invoca dos veces casi simultáneamente para el mismo partido (reintento
+        // de red, doble notificación desde EstadisticasAPI), sin esto ambas
+        // llamadas podían leer las mismas predicciones PENDIENTE antes de que la
+        // primera confirmara, y pagar el premio dos veces.
         List<Prediccion> predicciones = em.createQuery(
                 "SELECT p FROM Prediccion p WHERE p.partidoId = :pid AND p.estado = 'PENDIENTE'", Prediccion.class)
                 .setParameter("pid", partidoId)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
                 .getResultList();
 
         for (Prediccion p : predicciones) {
             if (p.getPronostico().equals(resultadoReal)) {
                 p.setEstado("GANADA");
                 BigDecimal premio = p.getMonto().multiply(p.getCuota());
-                Billetera b = em.find(Billetera.class, p.getBilleteraId());
+                Billetera b = em.find(Billetera.class, p.getBilleteraId(), LockModeType.PESSIMISTIC_WRITE);
+                if (b == null) {
+                    // La billetera de esta predicción ya no existe: no se puede
+                    // pagar, pero no se debe abortar la liquidación completa del
+                    // partido por una fila huérfana — se deja PENDIENTE para
+                    // revisión manual y se sigue con el resto.
+                    continue;
+                }
                 b.setSaldo(b.getSaldo().add(premio));
                 em.merge(b);
 

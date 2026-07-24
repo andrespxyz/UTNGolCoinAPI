@@ -40,6 +40,10 @@ public class BilleteraResource {
     @POST
     @Autenticado
     public Response crearBilletera(Billetera billetera) {
+        if (billetera == null || billetera.getUsuarioId() == null) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("mensaje", "Falta usuarioId en el cuerpo de la petición")).build();
+        }
         Response acceso = verificarPropietario(billetera.getUsuarioId());
         if (acceso != null) return acceso;
 
